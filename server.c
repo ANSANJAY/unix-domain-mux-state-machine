@@ -1,11 +1,64 @@
 #include "declarations.h"
 #include "headers.h"
 
+int monitored_fd_set[MAX_CLIENT_SUPPORTED];
+int client_result[MAX_CLIENT_SUPPORTED] = {0};
+
+static void initialize_monitor_fd_set() {
+  int i = 0;
+  for (; i < MAX_CLIENT_SUPPORTED; i++) {
+    monitored_fd_set[i] = -1;
+  }
+}
+
+static void add_to_monitored_fd(int skt_fd) {
+  int i = 0;
+  for (; i < MAX_CLIENT_SUPPORTED; i++) {
+    if (monitored_fd_set[i] != -1)
+      continue;
+    monitored_fd_set[i] = skt_fd;
+    break;
+  }
+}
+
+static void remove_from_monitored_fd(int skt_fd) {
+  int i = 0;
+  for (; i < MAX_CLIENT_SUPPORTED; i++) {
+    if (monitored_fd_set[i] != skt_fd)
+      continue;
+    monitored_fd_set[i] = -1;
+    break;
+  }
+}
+
+static void refresh_fd_set(fd_set *fd_set_ptr) {
+  FD_ZERO(fd_set_ptr);
+  //    void FD_ZERO(fd_set *set);
+
+  int i = 0;
+  for (; i < MAX_CLIENT_SUPPORTED; i++) {
+    if (monitored_fd_set[i] != -1)
+      FD_SET(monitored_fd_set[i], fd_set_ptr);
+  }
+  // void FD_SET(int fd, fd_set *set);
+}
+
+static int get_max_fd() {
+  int i = 0;
+  int max = -1;
+  for (; i < MAX_CLIENT_SUPPORTED; i++) {
+    if (monitored_fd_set[i] > max)
+      max = monitored_fd_set[i];
+  }
+  return max;
+}
+
 int main(int argc, char *argv[]) {
   struct sockaddr_un name;
   // Initialization
   int connection_socket, i;
   int data_socket;
+  int comm_fd;
   int ret;
   int data;
   int result;
@@ -14,27 +67,25 @@ int main(int argc, char *argv[]) {
 
   initialize_monitor_fd_set();
 
-  //
-  // create the socket
   unlink(SOCKET_NAME);
-
+  // create master_fd socket
   connection_socket = socket(AF_UNIX, SOCK_STREAM, 0);
   if (connection_socket < 0) {
-    error("socket");
+    perror("socket");
     exit(EXIT_FAILURE);
   }
   printf("Socket created successfully\n");
   memset(&name, 0, sizeof(struct sockaddr_un));
   name.sun_family = AF_UNIX;
-  strcpy(name.sun_path, SOCKET_NAME, sizeof(name.sun_path) - 1);
-  //
+  strncpy(name.sun_path, SOCKET_NAME, sizeof(name.sun_path) - 1);
+
   ret = bind(connection_socket, (struct sockaddr *)&name,
              sizeof(struct sockaddr_un));
   if (ret == -1) {
     perror("bind");
     exit(EXIT_FAILURE);
   }
-  printf("Socket binding successful "\n);
+  printf("Socket binding successful \n");
 
   ret = listen(connection_socket, 20);
   if (ret == -1) {
@@ -56,8 +107,9 @@ int main(int argc, char *argv[]) {
     // select is a blocking call, server waits for request from the client
     //        int  FD_ISSET(int fd, fd_set *set);
 
-    if(FD_ISSET(connection_socket,&readfds)
-    { // if the fd is same as master fd of the socket ==> implies this is a request from new client
+    if (FD_ISSET(connection_socket, &readfds)) {
+      // if the fd is same as master fd of the socket ==> implies this is a
+      // request from new client
       printf("Connection request from a new client , accept the request\n");
       // aacept the request
 
@@ -68,13 +120,14 @@ int main(int argc, char *argv[]) {
       }
       printf("Conenction established for new client\n");
       add_to_monitored_fd(data_socket);
-    }
-    else // fd already exist in the fd _set ==> it's an request from a client laready connected
+
+    } else // fd already exist in the fd _set ==> it's an request from a client
+           // laready connected
     {
       // find the client fd in the fd_set
       i = 0;
       comm_fd = -1;
-      for (; i < MAX_CLIENT_SUPPORTED; i++)
+      for (; i < MAX_CLIENT_SUPPORTED; i++) {
         if (FD_ISSET(monitored_fd_set[i], &readfds)) {
           comm_fd = monitored_fd_set[i];
 
@@ -83,7 +136,7 @@ int main(int argc, char *argv[]) {
 
           // waiting to read the data , read is a block call
 
-          printf("Waiitng for the data"\n);
+          printf("Waiitng for the data\n");
           ret = read(comm_fd, buffer, BUFFER_SIZE);
           if (ret == -1) {
             perror("read");
@@ -110,13 +163,13 @@ int main(int argc, char *argv[]) {
           }
           client_result[i] += data;
         }
-        
+      }
+    }
   } // go to select bloc syscall
-  }
+
   close(connection_socket);
   remove_from_monitored_fd(connection_socket);
   printf("Connection closed\n");
   unlink(SOCKET_NAME);
   exit(EXIT_SUCCESS);
 }
-
