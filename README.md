@@ -152,3 +152,89 @@ For code samples showing the `select()` function in action with UNIX domain sock
 * "Advanced Programming in the UNIX Environment" by W. Richard Stevens
 
 ------
+# Multiplexed Client-Server Model using `select()` System Call for Sum Calculation
+
+## Overview:
+
+A server is designed to accept connections from multiple clients. Each client sends integers to the server. The server maintains a running sum of integers received from each individual client. When a client sends the integer value `0`, the server responds back with the total sum of integers sent by that client up to that point and closes the connection to that client.
+
+## Problem Diagram:
+
+         +----------------------------------+
+         |            SERVER                |
+         |                                  |
+         |    +-----------------------+     |
+         |    |      select()         |<--------------------+
+         |    +-----------------------+     |               |
+         |                                  |               |
+         |    +-----------------------+     |               |
+         |    |  Calculate & Respond  |     |               |
+         |    +-----------------------+     |               |
+         +--------+----+----------+---------+               |
+         | Init FD | Add| Refresh | Remove  |               |
+         +--------+----+----------+---------+               |
+              |          |          |                       |
+     +--------+   +------+-----+  +----+-----+               |
+     |        |   |            |  |         |               |
+     | Client |   | Client 2   |  | Client N|               |
+     |    1   |   |            |  |         |               |
+     +--------+   +------------+  +---------+               |
+        |              |            |                       |
+        +--------------------------------------------------+
+
+## Design:
+
+1. **Server Initialization**: 
+   - The server initializes and binds to a known UNIX domain address.
+   - It starts listening for incoming client connections.
+   - Initializes arrays for monitored file descriptors and client results.
+
+2. **Client Connection**: 
+   - Each client connects to the server.
+   - Server, on accepting a new client connection, adds the client's file descriptor to the monitored set.
+
+3. **Data Transmission**:
+   - Clients send integers to the server.
+   - Server, on receiving an integer from a client:
+     - If the integer is `0`, responds back with the sum for that client, resets the client's sum to zero, and closes the client connection.
+     - If the integer is not `0`, the server adds the integer to that client's running total.
+
+4. **Server Multiplexing**:
+   - The server uses `select()` to efficiently manage and monitor file descriptors of all connected clients without blocking on any individual client's activity. It also refreshes the FD set before each call to `select()`.
+   
+5. **Utilities**:
+   - The server has utility functions to initialize, add, remove, and refresh the monitored FD set. It also has a utility function to get the maximum FD for use with `select()`.
+
+## Pseudocode based on Provided Code:
+
+```
+initialize monitored FD set
+create server socket
+bind and listen on server socket
+add server socket to monitored FD set
+
+while True:
+    refresh FD set for select()
+    use select() to wait for activity
+
+    if there's activity on the server socket:
+        accept new client connection
+        add new client's FD to monitored set
+
+    else:
+        for each client FD in monitored set:
+            if there's activity on client FD:
+                read integer from client
+
+                if integer == 0:
+                    send accumulated sum to client
+                    close client connection
+                    reset client's sum to zero
+                    remove client FD from monitored set
+
+                else:
+                    add integer to client's accumulated sum
+
+```
+## Expexted Output 
+![](./Screenshot%20from%202023-08-18%2023-51-27.png)
