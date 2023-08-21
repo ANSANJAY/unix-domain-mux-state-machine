@@ -184,6 +184,8 @@ A server is designed to accept connections from multiple clients. Each client se
 
 ## Problem Diagram:
 
+```sql
+
          +----------------------------------+
          |            SERVER                |
          |                                  |
@@ -205,6 +207,7 @@ A server is designed to accept connections from multiple clients. Each client se
      +--------+   +------------+  +---------+               |
         |              |            |                       |
         +--------------------------------------------------+
+```
 
 ## Design:
 
@@ -229,7 +232,7 @@ A server is designed to accept connections from multiple clients. Each client se
 5. **Utilities**:
    - The server has utility functions to initialize, add, remove, and refresh the monitored FD set. It also has a utility function to get the maximum FD for use with `select()`.
 
-## Pseudocode based on Provided Code:
+## Pseudocode:
 
 ```
 initialize monitored FD set
