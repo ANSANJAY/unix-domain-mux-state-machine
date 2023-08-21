@@ -19,7 +19,7 @@ Multiplexing in server-client systems involves handling multiple client connecti
 
 A multiplexed server-client state machine can be broken down into the following states:
 
-```
+```bash
      +------------------------------------+
      |            SERVER                  |
      |                                    |
@@ -41,6 +41,30 @@ A multiplexed server-client state machine can be broken down into the following 
    +--------+     +------------+  +-----------+               |
       |                |              |                       |
       +------------------------------------------------------+
+```
+
+```scss
+
+       Server Side                 Client Side
+    .---------.                    .---------.    
+   /  socket() \                  /  socket() \   
+  (   bind()   )                 (   client1  )  
+   \ listen()  /                  \ connect() /    
+    '-------'                     '---------'      
+        |                             |            
+        | fd_set: master_fd           V            
+        V                             |            
+    .-------.                    .---------.       
+   / select() \                  /  socket() \      
+  ( fd_set[]  )<---------------->(   client2  )      
+   \ accept() /   fd_set: new_fd \ connect() /       
+    '-------'                     '---------'       
+        |                             |             
+        V                             V             
+     close()                     ...               
+
+             ... continued for clientN
+
 ```
 
 ## Explanation:
